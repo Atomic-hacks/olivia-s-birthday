@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Star, Cake, Gift, PartyPopper, Sparkles, Music, Crown } from 'lucide-react';
+import { Cake, Crown, Gift, Heart, Music, PartyPopper, Sparkles, Star } from 'lucide-react';
 import { GlassPanel } from './GlassPanel';
 
 interface WordCard {
-  id: number;
+  id: string;
   word: string;
   icon: React.ElementType;
   matched: boolean;
@@ -14,187 +14,184 @@ interface WordCard {
 }
 
 const birthdayWords = [
-  { word: "PARTY", icon: PartyPopper },
-  { word: "CAKE", icon: Cake },
-  { word: "GIFT", icon: Gift },
-  { word: "WISH", icon: Star },
-  { word: "SONG", icon: Music },
-  { word: "LOVE", icon: Heart },
-  { word: "JOY", icon: Sparkles },
-  { word: "FUN", icon: Crown },
+  { word: 'PARTY', icon: PartyPopper },
+  { word: 'CAKE', icon: Cake },
+  { word: 'GIFT', icon: Gift },
+  { word: 'WISH', icon: Star },
+  { word: 'SONG', icon: Music },
+  { word: 'LOVE', icon: Heart },
+  { word: 'JOY', icon: Sparkles },
+  { word: 'QUEEN', icon: Crown },
 ];
+
+const bestKey = 'birthdayMemoryBest';
+
+const createDeck = (): WordCard[] => {
+  const pairs = birthdayWords.flatMap((item, index) => [
+    {
+      id: `${index}-a-${Date.now()}`,
+      word: item.word,
+      icon: item.icon,
+      matched: false,
+      revealed: false,
+    },
+    {
+      id: `${index}-b-${Date.now() + 1}`,
+      word: item.word,
+      icon: item.icon,
+      matched: false,
+      revealed: false,
+    },
+  ]);
+
+  return pairs.sort(() => Math.random() - 0.5);
+};
 
 export const BirthdayMemoryGame: React.FC = () => {
   const [cards, setCards] = useState<WordCard[]>([]);
   const [score, setScore] = useState(0);
-  const [matchedCount, setMatchedCount] = useState(0);
-  const [selectedCardIds, setSelectedCardIds] = useState<number[]>([]);
+  const [moves, setMoves] = useState(0);
+  const [bestScore, setBestScore] = useState<number | null>(null);
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const initializeGame = () => {
-    const gameCards = birthdayWords.map((item, index) => ({
-      id: index * 2,
-      word: item.word,
-      icon: item.icon,
-      matched: false,
-      revealed: false
-    }));
-    
-    const pairs = gameCards.map((card) => ({
-      ...card,
-      id: card.id + 1
-    }));
-    
-    const allCards = [...gameCards, ...pairs]
-      .sort(() => Math.random() - 0.5)
-      .map((card, index) => ({ ...card, position: index }));
+  const matchedCount = useMemo(() => cards.filter((card) => card.matched).length, [cards]);
+  const isComplete = cards.length > 0 && matchedCount === cards.length;
 
-    setCards(allCards);
+  const initializeGame = () => {
+    setCards(createDeck());
     setScore(0);
-    setMatchedCount(0);
+    setMoves(0);
     setSelectedCardIds([]);
     setIsProcessing(false);
   };
 
   useEffect(() => {
     initializeGame();
+
+    const savedBest = localStorage.getItem(bestKey);
+    if (savedBest) {
+      setBestScore(Number(savedBest));
+    }
   }, []);
 
-  const handleCardClick = (cardId: number) => {
+  useEffect(() => {
+    if (!isComplete) return;
+
+    if (bestScore === null || score > bestScore) {
+      setBestScore(score);
+      localStorage.setItem(bestKey, String(score));
+    }
+  }, [isComplete, score, bestScore]);
+
+  const handleCardClick = (cardId: string) => {
     if (isProcessing) return;
     if (selectedCardIds.includes(cardId)) return;
-    if (cards.find(c => c.id === cardId)?.matched) return;
-    if (selectedCardIds.length >= 2) return;
 
-    setCards(prev => prev.map(card => 
-      card.id === cardId ? { ...card, revealed: true } : card
-    ));
+    const activeCard = cards.find((card) => card.id === cardId);
+    if (!activeCard || activeCard.matched || activeCard.revealed) return;
 
-    setSelectedCardIds(prev => [...prev, cardId]);
+    const nextSelected = [...selectedCardIds, cardId];
 
-    if (selectedCardIds.length === 1) {
-      setIsProcessing(true);
-      const firstCard = cards.find(c => c.id === selectedCardIds[0]);
-      const secondCard = cards.find(c => c.id === cardId);
+    setCards((previous) => previous.map((card) => (card.id === cardId ? { ...card, revealed: true } : card)));
+    setSelectedCardIds(nextSelected);
 
-      setTimeout(() => {
-        if (firstCard && secondCard && firstCard.word === secondCard.word) {
-          setCards(prev => prev.map(card => 
-            card.id === firstCard.id || card.id === secondCard.id
-              ? { ...card, matched: true, revealed: true }
-              : card
-          ));
-          setScore(prev => prev + 10);
-          setMatchedCount(prev => prev + 2);
-        } else {
-          setCards(prev => prev.map(card => 
-            card.id === firstCard?.id || card.id === secondCard?.id
-              ? { ...card, revealed: false }
-              : card
-          ));
-          setScore(prev => Math.max(0, prev - 1));
-        }
-        setSelectedCardIds([]);
-        setIsProcessing(false);
-      }, 1000);
+    if (nextSelected.length < 2) {
+      return;
     }
+
+    setIsProcessing(true);
+    setMoves((previous) => previous + 1);
+
+    const [firstId, secondId] = nextSelected;
+    const firstCard = cards.find((card) => card.id === firstId);
+    const secondCard = cards.find((card) => card.id === secondId);
+
+    setTimeout(() => {
+      if (firstCard && secondCard && firstCard.word === secondCard.word) {
+        setCards((previous) =>
+          previous.map((card) => (card.id === firstId || card.id === secondId ? { ...card, matched: true, revealed: true } : card)),
+        );
+        setScore((previous) => previous + 15);
+      } else {
+        setCards((previous) =>
+          previous.map((card) => (card.id === firstId || card.id === secondId ? { ...card, revealed: false } : card)),
+        );
+        setScore((previous) => Math.max(0, previous - 2));
+      }
+
+      setSelectedCardIds([]);
+      setIsProcessing(false);
+    }, 700);
   };
 
   return (
-    <div className="w-full px-4 py-6 mx-auto max-w-lg lg:max-w-4xl">
-      <motion.h1 
-        className="text-3xl sm:text-4xl lg:text-6xl font-bold text-center mb-6"
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-      >
-        <span className="bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-purple-400">
-          Birthday Match
-        </span>
-      </motion.h1>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="text-center">
+        <h1 className="birthday-title text-4xl font-semibold md:text-6xl">Birthday Match</h1>
+        <p className="mt-3 text-white/75">Pair the cards quickly for a high score.</p>
+      </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="flex-1 h-screen md:h-full">
-          <GlassPanel>
-            <div className=" grid grid-cols-4 gap-2 sm:gap-3">
-              {cards.map((card) => {
-                const Icon = card.icon;
-                return (
-                  <motion.div
-                    key={card.id}
-                    className={`
-                      aspect-square rounded-lg touch-manipulation
-                      ${card.revealed || card.matched ? 'bg-pink-400/20' : 'bg-purple-400/20'}
-                      flex items-center justify-center
-                      active:scale-95 transition-transform
-                      min-h-[60px] sm:min-h-[80px]
-                    `}
-                    onClick={() => handleCardClick(card.id)}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <div className="text-center p-1">
-                      {(card.revealed || card.matched) ? (
-                        <>
-                          <Icon className={`w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1 ${card.matched ? 'text-green-400' : 'text-pink-400'}`} />
-                          <div className="text-xs sm:text-sm font-bold">{card.word}</div>
-                        </>
-                      ) : (
-                        <span className="text-xl sm:text-2xl">🎈</span>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-            <div className="mt-4 text-center">
-              <button
-                onClick={initializeGame}
-                className="w-full sm:w-auto px-6 py-3 bg-pink-500 text-white rounded-lg 
-                         hover:bg-pink-600 active:bg-pink-700 transition-colors
-                         text-lg font-semibold touch-manipulation"
-              >
-                New Game
-              </button>
-            </div>
-          </GlassPanel>
-        </div>
+      <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
+        <GlassPanel>
+          <div className="grid grid-cols-4 gap-2 sm:gap-3">
+            {cards.map((card) => {
+              const Icon = card.icon;
 
-        <div className="lg:w-96">
-          <GlassPanel>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Score Board</h2>
-              <div className="text-2xl text-pink-400">{score}</div>
-            </div>
-            <div className="space-y-4">
-              {matchedCount === cards.length ? (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="p-4 rounded-lg bg-green-400/20 text-center"
+              return (
+                <motion.button
+                  key={card.id}
+                  onClick={() => handleCardClick(card.id)}
+                  className={`aspect-square rounded-2xl border p-2 transition ${
+                    card.revealed || card.matched
+                      ? 'border-pink-200/40 bg-pink-300/15 text-pink-100'
+                      : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
+                  }`}
+                  whileTap={{ scale: 0.96 }}
                 >
-                  <h3 className="text-xl font-bold mb-2">🎉 Happy Birthday! 🎉</h3>
-                  <p>You matched all the words!</p>
-                </motion.div>
-              ) : (
-                <div className="text-center text-pink-300 text-sm sm:text-base">
-                  Match the birthday words to score points!
-                </div>
-              )}
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {cards.filter(card => card.matched).map((card, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="p-2 sm:p-3 rounded-lg bg-white/5 text-pink-300 text-sm"
-                  >
-                    Matched: {card.word}!
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </GlassPanel>
-        </div>
+                  {card.revealed || card.matched ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-1 text-xs sm:text-sm">
+                      <Icon className={`h-5 w-5 ${card.matched ? 'text-emerald-300' : 'text-pink-200'}`} />
+                      <span className="font-semibold">{card.word}</span>
+                    </div>
+                  ) : (
+                    <span className="text-lg sm:text-2xl">🎈</span>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        </GlassPanel>
+
+        <GlassPanel className="space-y-4">
+          <div className="rounded-2xl bg-white/5 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/60">Score</p>
+            <p className="mt-1 text-3xl font-semibold text-pink-100">{score}</p>
+          </div>
+
+          <div className="rounded-2xl bg-white/5 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/60">Moves</p>
+            <p className="mt-1 text-3xl font-semibold text-pink-100">{moves}</p>
+          </div>
+
+          <div className="rounded-2xl bg-white/5 p-4">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/60">Best Score</p>
+            <p className="mt-1 text-2xl font-semibold text-pink-100">{bestScore ?? 'No record yet'}</p>
+          </div>
+
+          <button
+            onClick={initializeGame}
+            className="w-full rounded-xl bg-gradient-to-r from-pink-500 to-fuchsia-600 px-4 py-3 text-sm font-semibold uppercase tracking-wide text-white"
+          >
+            New Game
+          </button>
+
+          {isComplete ? (
+            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl bg-emerald-300/20 p-3 text-sm">
+              Perfect run. You matched every pair.
+            </motion.div>
+          ) : null}
+        </GlassPanel>
       </div>
     </div>
   );

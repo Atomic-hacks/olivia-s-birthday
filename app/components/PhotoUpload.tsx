@@ -1,128 +1,142 @@
 'use client';
-import React, { useState, useRef } from 'react';
+
+import React, { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Image as ImageIcon } from 'lucide-react';
+import { Upload, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { GlassPanel } from './GlassPanel';
+
+interface StoredPhoto {
+  id: string;
+  url: string;
+  date: string;
+  caption?: string;
+}
 
 export const UploadSection = () => {
   const [caption, setCaption] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [status, setStatus] = useState('');
+  const [uploadedCount, setUploadedCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const helperText = useMemo(() => {
+    if (uploadedCount === 0) return 'Add photos to keep the celebration timeline alive.';
+    return `${uploadedCount} photo${uploadedCount > 1 ? 's' : ''} added in this session.`;
+  }, [uploadedCount]);
+
+  const persistPhotos = (newPhotos: StoredPhoto[]) => {
+    const savedPhotos = localStorage.getItem('albumPhotos');
+    const photos: StoredPhoto[] = savedPhotos ? JSON.parse(savedPhotos) : [];
+    const next = [...newPhotos, ...photos];
+    localStorage.setItem('albumPhotos', JSON.stringify(next));
+    window.dispatchEvent(new CustomEvent('albumPhotosUpdated'));
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+    if (e.type === 'dragenter' || e.type === 'dragover') setDragActive(true);
+    if (e.type === 'dragleave') setDragActive(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
     const files = Array.from(e.dataTransfer.files);
     handleFiles(files);
   };
 
-  const handleButtonClick = () => {
-    fileInputRef.current?.click();
-  };
-
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const files = Array.from(e.target.files);
-      handleFiles(files);
+    if (e.target.files?.length) {
+      handleFiles(Array.from(e.target.files));
     }
   };
 
-  const handleFiles = (files: File[]) => {
-    files.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const newPhoto = {
-            id: Date.now().toString(),
-            url: e.target?.result,
-            date: new Date().toISOString(),
-            caption: caption
-          };
+  const handleFiles = async (files: File[]) => {
+    const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+    if (!imageFiles.length) {
+      setStatus('Please choose image files only.');
+      return;
+    }
 
-          // Save to localStorage
-          const savedPhotos = localStorage.getItem('albumPhotos');
-          const photos = savedPhotos ? JSON.parse(savedPhotos) : [];
-          photos.push(newPhoto);
-          localStorage.setItem('albumPhotos', JSON.stringify(photos));
+    const loadedPhotos = await Promise.all(
+      imageFiles.map(
+        (file) =>
+          new Promise<StoredPhoto>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              resolve({
+                id: `${Date.now()}-${file.name}`,
+                url: String(event.target?.result || ''),
+                date: new Date().toISOString(),
+                caption: caption.trim(),
+              });
+            };
+            reader.readAsDataURL(file);
+          }),
+      ),
+    );
 
-          // Clear caption and show success message
-          setCaption('');
-          alert('Photo uploaded successfully!');
-          
-          // Optional: Trigger a callback to parent component to refresh the photos
-          // if (onPhotoUploaded) {
-          //   onPhotoUploaded(newPhoto);
-          // }
-        };
-        reader.readAsDataURL(file);
-      } else {
-        alert('Please upload only image files.');
-      }
-    });
+    persistPhotos(loadedPhotos);
+    setUploadedCount((previous) => previous + loadedPhotos.length);
+    setCaption('');
+    setStatus(`${loadedPhotos.length} photo${loadedPhotos.length > 1 ? 's' : ''} uploaded.`);
   };
 
   return (
-    <div className="space-y-4">
-      <motion.div
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-        className={`
-          border-2 border-dashed rounded-xl p-8
-          transition-colors duration-300
-          flex flex-col items-center justify-center
-          min-h-[200px]
-          ${dragActive ? 'border-purple-400 bg-purple-400/10' : 'border-white/20'}
-        `}
-      >
+    <div className="mx-auto max-w-3xl space-y-5">
+      <div className="text-center">
+        <h1 className="birthday-title text-4xl font-semibold md:text-5xl">Upload Memories</h1>
+        <p className="mt-3 text-white/75">Drop your favorite moments so they instantly appear in Memory Lane.</p>
+      </div>
+
+      <GlassPanel>
         <motion.div
-          initial={{ scale: 1 }}
-          animate={{ scale: dragActive ? 1.05 : 1 }}
-          className="text-center"
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+          className={`rounded-2xl border-2 border-dashed p-8 text-center transition ${
+            dragActive ? 'border-pink-300 bg-pink-300/10' : 'border-white/20 bg-white/5'
+          }`}
+          animate={{ scale: dragActive ? 1.01 : 1 }}
         >
-          <ImageIcon className="w-12 h-12 mx-auto mb-4 text-purple-400" />
-          <p className="text-lg mb-2">Drag and drop your photos here</p>
-          <p className="text-sm text-gray-400">or</p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            accept="image/*"
-            multiple
-            onChange={handleFileInput}
-          />
-          <Button 
-            variant="outline" 
-            className="mt-4 bg-purple-500/20 hover:bg-purple-500/30"
-            onClick={handleButtonClick}
+          <ImageIcon className="mx-auto h-12 w-12 text-pink-200" />
+          <p className="mt-3 text-lg font-medium text-white">Drag and drop photos here</p>
+          <p className="mt-1 text-sm text-white/60">or choose files manually</p>
+
+          <input ref={fileInputRef} type="file" className="hidden" accept="image/*" multiple onChange={handleFileInput} />
+
+          <Button
+            variant="outline"
+            className="mt-5 border-white/30 bg-white/10 text-white hover:bg-white/20"
+            onClick={() => fileInputRef.current?.click()}
           >
-            <Upload className="w-4 h-4 mr-2" />
+            <Upload className="mr-2 h-4 w-4" />
             Choose Files
           </Button>
         </motion.div>
-      </motion.div>
 
-      <Input
-        type="text"
-        placeholder="Add a caption (optional)"
-        value={caption}
-        onChange={(e) => setCaption(e.target.value)}
-        className="bg-transparent border-white/20 focus:border-purple-400"
-      />
+        <div className="mt-4 space-y-2">
+          <Input
+            type="text"
+            placeholder="Optional caption for this upload"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            className="border-white/25 bg-white/10 text-white placeholder:text-white/45"
+          />
+          <p className="text-sm text-white/70">{helperText}</p>
+          {status ? (
+            <p className="inline-flex items-center gap-2 text-sm text-emerald-200">
+              <CheckCircle2 className="h-4 w-4" />
+              {status}
+            </p>
+          ) : null}
+        </div>
+      </GlassPanel>
     </div>
   );
 };

@@ -1,8 +1,10 @@
 'use client';
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import {  Layers, Sparkles, Download, Undo } from 'lucide-react';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Layers, Sparkles, Undo, Shuffle, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { GlassPanel } from './GlassPanel';
 
 interface CakeLayer {
@@ -12,212 +14,207 @@ interface CakeLayer {
   height: number;
 }
 
-interface Decoration {
-  id: string;
-  type: 'sprinkles' | 'candle' | 'flower' | 'text';
-  position: { x: number; y: number };
-  color: string;
+interface CakeDesignState {
+  layers: CakeLayer[];
+  message: string;
+  candleCount: number;
+  sprinkles: boolean;
 }
 
+const cakeDesignKey = 'cakeDesignV2';
+
+const palette = [
+  { color: '#ff8fc8', flavor: 'Strawberry' },
+  { color: '#bca6ff', flavor: 'Lavender Vanilla' },
+  { color: '#98d6ff', flavor: 'Blueberry Cream' },
+  { color: '#ffe08d', flavor: 'Lemon Butter' },
+  { color: '#95e8c5', flavor: 'Mint Chocolate' },
+];
+
+const defaultDesign: CakeDesignState = {
+  layers: [{ id: 'base', color: '#ff8fc8', flavor: 'Strawberry', height: 84 }],
+  message: 'Happy Birthday Olivia',
+  candleCount: 3,
+  sprinkles: true,
+};
+
 export const CakeCustomizer = () => {
-  const [layers, setLayers] = useState<CakeLayer[]>([
-    { id: '1', color: '#FFB6C1', flavor: 'Strawberry', height: 80 }
-  ]);
-  const [decorations, setDecorations] = useState<Decoration[]>([]);
-  const [activeTab, setActiveTab] = useState<'layers' | 'decorations'>('layers');
+  const [design, setDesign] = useState<CakeDesignState>(defaultDesign);
+  const [saveMessage, setSaveMessage] = useState('');
 
-  const colors = ['#FFB6C1', '#87CEEB', '#98FB98', '#DDA0DD', '#F0E68C'];
-  const flavors = ['Strawberry', 'Blueberry', 'Mint', 'Lavender', 'Lemon'];
-  
-  const addLayer = (color: string, flavor: string) => {
-    if (layers.length < 4) {
-      setLayers([...layers, {
-        id: Date.now().toString(),
-        color,
-        flavor,
-        height: 80
-      }]);
+  useEffect(() => {
+    const saved = localStorage.getItem(cakeDesignKey);
+    if (saved) {
+      setDesign(JSON.parse(saved));
     }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(cakeDesignKey, JSON.stringify(design));
+  }, [design]);
+
+  const totalHeight = useMemo(() => design.layers.reduce((sum, layer) => sum + layer.height, 0), [design.layers]);
+
+  const addLayer = (color: string, flavor: string) => {
+    if (design.layers.length >= 5) return;
+
+    setDesign((previous) => ({
+      ...previous,
+      layers: [...previous.layers, { id: `${Date.now()}`, color, flavor, height: 72 }],
+    }));
   };
 
-  const addDecoration = (type: 'sprinkles' | 'candle' | 'flower' | 'text') => {
-    setDecorations([...decorations, {
-      id: Date.now().toString(),
-      type,
-      position: { x: 50, y: 50 },
-      color: colors[Math.floor(Math.random() * colors.length)]
-    }]);
+  const removeTopLayer = () => {
+    if (design.layers.length <= 1) return;
+    setDesign((previous) => ({ ...previous, layers: previous.layers.slice(0, -1) }));
   };
 
-  const handleDragDecoration = (id: string, position: { x: number; y: number }) => {
-    setDecorations(decorations.map(d =>
-      d.id === id ? { ...d, position } : d
-    ));
-  };
+  const randomizeDesign = () => {
+    const layerCount = Math.floor(Math.random() * 4) + 1;
+    const layers: CakeLayer[] = Array.from({ length: layerCount }, (_, index) => {
+      const choice = palette[Math.floor(Math.random() * palette.length)];
+      return {
+        id: `random-${index}-${Date.now()}`,
+        color: choice.color,
+        flavor: choice.flavor,
+        height: 66 + Math.floor(Math.random() * 26),
+      };
+    });
 
- /* const removeLayer = (id: string) => {
-    setLayers(layers.filter(layer => layer.id !== id));
+    setDesign({
+      layers,
+      message: 'Celebrate Big Today',
+      candleCount: Math.floor(Math.random() * 7) + 1,
+      sprinkles: Math.random() > 0.35,
+    });
   };
-
-  const removeDecoration = (id: string) => {
-    setDecorations(decorations.filter(d => d.id !== id));
-  };*/
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <motion.h1 
-        className="text-4xl md:text-6xl font-bold text-center mb-8"
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-      >
-        <span className="bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-purple-400">
-          Design Your Dream Cake
-        </span>
-      </motion.h1>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div className="text-center">
+        <h1 className="birthday-title text-4xl font-semibold md:text-6xl">Cake Studio</h1>
+        <p className="mt-3 text-white/80">Build a cake, set the message, then save it as part of the celebration memory.</p>
+      </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Cake Preview */}
+      <div className="grid gap-6 md:grid-cols-2">
         <GlassPanel>
-          <div className="relative h-[400px] flex items-center justify-center">
-            <div className="relative">
-              <AnimatePresence>
-                {layers.map((layer, index) => (
+          <div className="relative flex h-[430px] items-end justify-center rounded-2xl bg-gradient-to-b from-white/5 to-black/20 p-4">
+            <div className="absolute top-3 text-sm uppercase tracking-[0.2em] text-white/50">Preview</div>
+
+            <div className="relative" style={{ width: 280, height: Math.max(260, totalHeight + 120) }}>
+              {design.layers.map((layer, index) => {
+                const width = 240 - index * 22;
+                const bottom = design.layers.slice(0, index).reduce((sum, item) => sum + item.height, 0);
+
+                return (
                   <motion.div
                     key={layer.id}
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    exit={{ scale: 0 }}
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="absolute left-1/2 flex -translate-x-1/2 items-center justify-center rounded-xl text-xs font-medium text-white/95 shadow-xl"
                     style={{
-                      backgroundColor: layer.color,
-                      height: `${layer.height}px`,
-                      width: `${200 - index * 20}px`,
-                      position: 'absolute',
-                      bottom: `${index * layer.height}px`,
-                      left: `${index * 10}px`,
-                      borderRadius: '8px',
+                      width,
+                      height: layer.height,
+                      bottom,
+                      background: `linear-gradient(145deg, ${layer.color}, #ffffff30)`,
                     }}
-                    className="flex items-center justify-center shadow-lg"
-                    whileHover={{ scale: 1.05 }}
                   >
-                    <span className="text-sm font-medium text-white text-center">
-                      {layer.flavor}
-                    </span>
+                    {layer.flavor}
                   </motion.div>
-                ))}
-              </AnimatePresence>
+                );
+              })}
 
-              <AnimatePresence>
-                {decorations.map((decoration) => (
-                  <motion.div
-                    key={decoration.id}
-                    drag
-                    dragConstraints={{ left: 0, right: 200, top: 0, bottom: 400 }}
-                    onDragEnd={(_, info) => handleDragDecoration(decoration.id, info.point)}
-                    style={{
-                      position: 'absolute',
-                      left: decoration.position.x,
-                      top: decoration.position.y,
-                      color: decoration.color
-                    }}
-                    whileHover={{ scale: 1.2 }}
-                  >
-                    {decoration.type === 'sprinkles' && <Sparkles />}
-                    {decoration.type === 'candle' && '🕯️'}
-                    {decoration.type === 'flower' && '🌸'}
-                    {decoration.type === 'text' && 'Happy Birthday!'}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+              {design.sprinkles ? (
+                <div className="pointer-events-none absolute left-1/2 top-4 h-32 w-40 -translate-x-1/2 bg-[radial-gradient(circle,#fff6_1px,transparent_1px)] [background-size:12px_12px]" />
+              ) : null}
+
+              <div className="absolute left-1/2 top-8 -translate-x-1/2 text-center">
+                <p className="rounded-full bg-black/25 px-3 py-1 text-xs tracking-wide text-pink-100">{design.message || 'Birthday Magic'}</p>
+                <div className="mt-2 flex justify-center gap-1">
+                  {Array.from({ length: design.candleCount }).map((_, index) => (
+                    <span key={index} className="text-base" role="img" aria-label="candle">
+                      🕯️
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </GlassPanel>
 
-        {/* Controls */}
-        <GlassPanel>
-          <div className="space-y-6">
-            <div className="flex gap-4">
-              <Button
-                onClick={() => setActiveTab('layers')}
-                variant={activeTab === 'layers' ? 'default' : 'outline'}
-              >
-                <Layers className="w-4 h-4 mr-2" />
-                Layers
-              </Button>
-              <Button
-                onClick={() => setActiveTab('decorations')}
-                variant={activeTab === 'decorations' ? 'default' : 'outline'}
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Decorations
-              </Button>
-            </div>
-
-            <AnimatePresence mode="wait">
-              {activeTab === 'layers' ? (
-                <motion.div
-                  key="layers"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-4"
+        <GlassPanel className="space-y-5">
+          <div className="space-y-2">
+            <p className="inline-flex items-center gap-2 text-lg font-semibold text-white">
+              <Layers className="h-5 w-5 text-pink-200" /> Layers
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {palette.map((choice) => (
+                <Button
+                  key={choice.flavor}
+                  onClick={() => addLayer(choice.color, choice.flavor)}
+                  disabled={design.layers.length >= 5}
+                  className="justify-start text-left"
+                  style={{ backgroundColor: `${choice.color}55` }}
                 >
-                  <div className="grid grid-cols-2 gap-2">
-                    {colors.map((color, i) => (
-                      <Button
-                        key={color}
-                        onClick={() => addLayer(color, flavors[i])}
-                        disabled={layers.length >= 4}
-                        className="relative overflow-hidden"
-                        style={{ backgroundColor: color }}
-                      >
-                        {flavors[i]}
-                      </Button>
-                    ))}
-                  </div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="decorations"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-4"
-                >
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button onClick={() => addDecoration('sprinkles')}>
-                      Add Sprinkles
-                    </Button>
-                    <Button onClick={() => addDecoration('candle')}>
-                      Add Candle
-                    </Button>
-                    <Button onClick={() => addDecoration('flower')}>
-                      Add Flower
-                    </Button>
-                    <Button onClick={() => addDecoration('text')}>
-                      Add Text
-                    </Button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setLayers([]);
-                  setDecorations([]);
-                }}
-              >
-                <Undo className="w-4 h-4 mr-2" />
-                Reset
-              </Button>
-              <Button className="flex-1">
-                <Download className="w-4 h-4 mr-2" />
-                Save Design
-              </Button>
+                  {choice.flavor}
+                </Button>
+              ))}
             </div>
+            <Button onClick={removeTopLayer} variant="outline" className="w-full border-white/30 bg-white/10 text-white hover:bg-white/20">
+              Remove Top Layer
+            </Button>
           </div>
+
+          <div className="space-y-2">
+            <p className="inline-flex items-center gap-2 text-lg font-semibold text-white">
+              <Sparkles className="h-5 w-5 text-violet-200" /> Details
+            </p>
+            <Input
+              value={design.message}
+              onChange={(event) => setDesign((previous) => ({ ...previous, message: event.target.value.slice(0, 40) }))}
+              placeholder="Cake message"
+              className="border-white/25 bg-white/10 text-white placeholder:text-white/45"
+            />
+            <label className="block text-sm text-white/80">
+              Candle Count: {design.candleCount}
+              <input
+                type="range"
+                min={1}
+                max={10}
+                value={design.candleCount}
+                onChange={(event) => setDesign((previous) => ({ ...previous, candleCount: Number(event.target.value) }))}
+                className="mt-2 w-full"
+              />
+            </label>
+            <Button
+              onClick={() => setDesign((previous) => ({ ...previous, sprinkles: !previous.sprinkles }))}
+              variant="outline"
+              className="w-full border-white/30 bg-white/10 text-white hover:bg-white/20"
+            >
+              {design.sprinkles ? 'Hide Sprinkles' : 'Add Sprinkles'}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <Button onClick={randomizeDesign} className="bg-fuchsia-600 hover:bg-fuchsia-700">
+              <Shuffle className="mr-2 h-4 w-4" /> Random
+            </Button>
+            <Button onClick={() => setDesign(defaultDesign)} variant="outline" className="border-white/30 bg-white/10 text-white hover:bg-white/20">
+              <Undo className="mr-2 h-4 w-4" /> Reset
+            </Button>
+            <Button
+              onClick={() => {
+                localStorage.setItem(cakeDesignKey, JSON.stringify(design));
+                setSaveMessage('Design saved locally.');
+                setTimeout(() => setSaveMessage(''), 1800);
+              }}
+              className="bg-emerald-500 hover:bg-emerald-600"
+            >
+              <Save className="mr-2 h-4 w-4" /> Save
+            </Button>
+          </div>
+
+          {saveMessage ? <p className="text-sm text-emerald-200">{saveMessage}</p> : null}
         </GlassPanel>
       </div>
     </div>

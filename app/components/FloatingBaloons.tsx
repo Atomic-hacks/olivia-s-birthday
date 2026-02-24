@@ -1,48 +1,65 @@
-import React from 'react';
+'use client';
+
+import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 
+interface BalloonMeta {
+  id: number;
+  left: number;
+  delay: number;
+  duration: number;
+  drift: number;
+  size: number;
+  color: string;
+}
+
 export const FloatingBalloons = () => {
-  const balloonColors = [
-    'bg-pink-500',
-    'bg-purple-500',
-    'bg-blue-500',
-    'bg-yellow-500',
-    'bg-green-500',
-  ];
+  const balloons = useMemo<BalloonMeta[]>(() => {
+    const colors = ['#ff5fa8', '#d54cf3', '#7e67ff', '#5897ff', '#5dcde6'];
+
+    return Array.from({ length: 12 }, (_, index) => ({
+      id: index,
+      left: 4 + Math.random() * 92,
+      delay: Math.random() * 9,
+      duration: 14 + Math.random() * 10,
+      drift: 14 + Math.random() * 22,
+      size: 24 + Math.random() * 18,
+      color: colors[index % colors.length],
+    }));
+  }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden">
-      {[...Array(15)].map((_, i) => {
-        const randomDelay = Math.random() * 20;
-        const randomDuration = 15 + Math.random() * 20;
-        const randomX = Math.random() * 100;
-        const color = balloonColors[i % balloonColors.length];
-        
-        return (
-          <motion.div
-            key={i}
-            className={`absolute bottom-0 w-4 h-6 ${color} rounded-full`}
+    <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+      {balloons.map((balloon) => (
+        <motion.div
+          key={balloon.id}
+          className="absolute"
+          style={{ left: `${balloon.left}vw`, bottom: '-8vh' }}
+          initial={{ y: '20vh', opacity: 0.2 }}
+          animate={{
+            y: '-120vh',
+            x: [0, balloon.drift, -balloon.drift * 0.7, 0],
+            rotate: [0, 5, -4, 0],
+            opacity: [0.2, 0.6, 0.55, 0.25],
+          }}
+          transition={{
+            duration: balloon.duration,
+            delay: balloon.delay,
+            repeat: Infinity,
+            ease: 'linear',
+          }}
+        >
+          <div
+            className="rounded-full shadow-lg"
             style={{
-              left: `${randomX}vw`,
-              originY: 1,
+              width: `${balloon.size}px`,
+              height: `${balloon.size * 1.2}px`,
+              background: `linear-gradient(160deg, ${balloon.color}, #ffffff35)`,
             }}
-            initial={{ y: '120vh' }}
-            animate={{
-              y: '-120vh',
-              x: [0, 20, -20, 0],
-              rotate: [0, 10, -10, 0],
-            }}
-            transition={{
-              duration: randomDuration,
-              delay: randomDelay,
-              repeat: Infinity,
-              ease: 'linear',
-            }}
-          >
-            <div className="w-px h-8 bg-white/50 origin-top rotate-12" />
-          </motion.div>
-        );
-      })}
+          />
+          <div className="mx-auto h-10 w-px bg-white/35" />
+        </motion.div>
+      ))}
     </div>
   );
 };

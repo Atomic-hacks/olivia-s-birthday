@@ -9,18 +9,11 @@ interface GlassPanelProps {
 export const GlassPanel = ({ children, className = '' }: GlassPanelProps) => {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className={`
-        backdrop-blur-lg
-        bg-white/10
-        border border-white/20
-        rounded-2xl
-        shadow-xl
-        p-6
-        ${className}
-      `}
+      transition={{ duration: 0.45, ease: 'easeOut' }}
+      whileHover={{ y: -2 }}
+      className={`birthday-surface rounded-3xl p-5 md:p-6 ${className}`}
     >
       {children}
     </motion.div>
